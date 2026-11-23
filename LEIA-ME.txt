@@ -1,0 +1,54 @@
+FEIRA ACONTECE — VERSÃO REVISADA
+
+ARQUIVOS
+- index.html: interface e lógica do aplicativo.
+- eventos.js: configurações e cadastro dos eventos.
+
+COMO TESTAR NO COMPUTADOR
+1. Extraia os dois arquivos para a mesma pasta.
+2. Abra um terminal/PowerShell nessa pasta.
+3. Execute:
+   py -m http.server 8000
+   (Se o comando py não existir, tente: python -m http.server 8000)
+4. Abra no navegador:
+   http://localhost:8000
+5. Para encerrar o servidor local, volte ao terminal e pressione Ctrl+C.
+
+Use um servidor local em vez de abrir o index.html com duplo clique. Isso evita limitações de alguns navegadores com arquivos locais e permite testar melhor recursos como copiar e compartilhar.
+
+INTERNET
+O aplicativo é estático e não tem servidor ou banco de dados. O mapa Leaflet/OpenStreetMap, as fontes e as imagens de demonstração dependem de internet.
+
+EVENTOS
+Todos os 15 eventos que acompanham esta versão são FICTÍCIOS e servem somente para demonstração. As coordenadas também são ilustrativas. Não publique os dados de demonstração como eventos reais.
+
+Para cadastrar eventos reais:
+1. Abra eventos.js.
+2. Copie o modelo comentado logo abaixo de const EVENTOS = [.
+3. Cole um novo objeto dentro da lista, usando vírgula entre os objetos.
+4. Preencha data como AAAA-MM-DD e horários como HH:MM.
+5. Use coordenadas reais ou null para latitude e longitude. Não invente coordenadas.
+6. Remova o campo demo: true dos eventos reais.
+7. Quando todos os exemplos fictícios tiverem sido substituídos, altere CONFIG.modoDemonstracao para false.
+
+RELATOS E COMPARTILHAMENTO
+- O botão de compartilhar evento usa o menu nativo do dispositivo; quando não houver suporte, oferece cópia do texto.
+- O relato de problema apenas gera um texto para copiar. Não é enviado nem armazenado automaticamente.
+- Não há link direto de WhatsApp ou e-mail para encaminhar relatos nesta versão.
+
+FAVORITOS
+Os favoritos são armazenados no localStorage do navegador. Eles permanecem no mesmo navegador/aparelho, mas não são sincronizados entre dispositivos e podem ser apagados quando os dados do navegador forem limpos.
+
+PUBLICAÇÃO NO GITHUB PAGES
+1. Crie um repositório no GitHub.
+2. Envie index.html e eventos.js para a raiz do repositório.
+3. Abra Settings > Pages.
+4. Configure a publicação a partir da branch principal (por exemplo, main) e da pasta /(root).
+5. Depois que a publicação estiver ativa, abra o endereço gerado pelo GitHub Pages.
+6. Para atualizar eventos, edite eventos.js e envie a alteração ao repositório.
+
+LIMITES DESTA VERSÃO
+- Não busca eventos automaticamente na internet.
+- Não tem painel administrativo, banco de dados ou sincronização de favoritos.
+- Ainda não é APK nem PWA instalável.
+- O mapa só coloca marcadores nos eventos que tenham latitude e longitude válidas.

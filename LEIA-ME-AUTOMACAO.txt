@@ -1,0 +1,38 @@
+FEIRA ACONTECE — INTEGRAÇÃO DE AUTOMAÇÃO (BETA)
+
+O QUE FOI ALTERADO
+- O visual e as funções existentes do index.html foram preservados.
+- index.html agora carrega eventos-auto.js.
+- O aplicativo combina os eventos manuais de eventos.js com EVENTOS_AUTO.
+- O coletor roda no GitHub Actions, sem instalar Python no seu notebook.
+- A busca usa RSS público do Google Notícias. Não acessa contas privadas e não faz scraping de Instagram/Facebook.
+
+COMO INSTALAR NO GITHUB
+1. Faça backup do seu repositório atual.
+2. Envie/substitua index.html e eventos.js na raiz.
+3. Envie também eventos-auto.js na raiz.
+4. Envie a pasta automacao, a pasta aprovacao e .github/workflows/atualizar-eventos.yml.
+5. No GitHub, abra Actions e habilite os workflows, se aparecer a opção.
+6. Abra Actions > Atualizar eventos automaticamente > Run workflow para testar manualmente.
+7. O workflow também tenta executar a cada 6 horas.
+
+COMO FUNCIONA A APROVAÇÃO
+- Só publica automaticamente quando encontra um evento com palavra-chave, menção explícita a Feira de Santana, data e horário identificáveis e domínio incluído na lista confiável.
+- No primeiro momento, a lista confiável contém apenas feiradesantana.ba.gov.br.
+- Os demais resultados relevantes ficam em aprovacao/pendentes.json.
+- Para aprovar um item, confira a divulgação original. Copie o objeto "sugestao" para aprovacao/aprovados.json, confirme todos os dados e faça commit. Não aprove dados incompletos ou incorretos.
+- Se o item não tiver sugestao, cadastre os dados corretos manualmente em aprovados.json ou eventos.js.
+- Para confiar em outro domínio, edite TRUSTED_DOMAINS em automacao/coletar_eventos.py somente após verificar a fonte.
+
+LIMITES IMPORTANTES
+- Esta é uma primeira versão experimental: RSS e extração de data/horário podem errar. Revise os resultados.
+- A automação não garante encontrar todos os eventos da cidade.
+- Instagram/Facebook não são consultados automaticamente. O acesso depende de APIs oficiais e permissões.
+- O coletor não inventa coordenadas, endereço de local ou preço. Sem coordenadas, o evento não ganha marcador no mapa.
+- Preço desconhecido aparece como "Consulte a divulgação"; isso não significa que seja gratuito.
+- A busca não é em tempo real: roda a cada 6 horas e também pode ser iniciada manualmente.
+- Os 15 eventos existentes em eventos.js continuam fictícios e com demo:true. Eles ainda aparecem como demonstração até serem removidos/substituídos por eventos reais. NÃO desligue modoDemonstracao enquanto esses exemplos estiverem na lista.
+
+SEGURANÇA
+- O workflow usa permissões de escrita no próprio repositório para salvar eventos-auto.js e aprovacao/pendentes.json.
+- Não coloque senhas, tokens ou dados privados nos arquivos.
