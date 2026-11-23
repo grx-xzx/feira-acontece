@@ -28,7 +28,26 @@ QUERIES = [
     '"festival" "Feira de Santana"',
     '"feira" "Feira de Santana" evento',
 ]
-EVENT_WORDS = re.compile(r"\b(show|festival|festa|festas|evento|encontro|exposi[cç][aã]o|feira|espet[aá]culo|corrida|campeonato|torneio|sarau|palestra|oficina|concerto|apresenta[cç][aã]o|arrai[aá]|forr[oó]|micareta)\b", re.I)
+# Termos que identificam um evento específico (ex.: Micareta 2026) ou
+# uma programação. Evita confundir notícias administrativas com eventos.
+EVENT_ANCHORS = re.compile(
+    r"\b(micareta|carnaval|s[aã]o jo[aã]o|arrai[aá]|festival|show|concerto|"
+    r"espet[aá]culo|pe[cç]a teatral|corrida|campeonato|torneio|sarau|"
+    r"exposi[cç][aã]o|feira de artesanato|feira gastron[oô]mica|"
+    r"festa|encontro|congresso|conven[cç][aã]o|mostra cultural)\b", re.I
+)
+GENERIC_EVENT_WORDS = re.compile(
+    r"\b(eventos?|festas?|festejos|programa[cç][aã]o|agenda cultural)\b", re.I
+)
+EVENT_INTENT = re.compile(
+    r"\b(acontece|acontecer[aá]|ser[aá] realizado|ser[aá] realizada|"
+    r"ser[aã]o realizados|ser[aã]o realizadas|programa[cç][aã]o|ingressos?|"
+    r"inscri[cç][oõ]es?|atra[cç][oõ]es|abertura|edi[cç][aã]o|data e hor[aá]rio)\b", re.I
+)
+ADMIN_ONLY = re.compile(
+    r"\b(aprov(a|ou|am)|cr[eé]dito especial|verba|or[cç]amento|repasse|"
+    r"licita[cç][aã]o|contrato|emenda parlamentar|presta[cç][aã]o de contas)\b", re.I
+)
 DATE_PATTERNS = [
     re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](20\d{2})\b"),
     re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})\b"),
@@ -156,15 +175,27 @@ def main():
     auto, pending = [], []
     for item in candidates:
         text = item["title"] + " " + item["description"]
-        if not EVENT_WORDS.search(text):
-            continue
         if not re.search(r"feira de santana", text, re.I):
             continue
+
+        # Mantém notícias diretamente ligadas a eventos conhecidos da cidade
+        # (por exemplo, Micareta), mesmo quando são informações de serviço.
+        has_anchor = bool(EVENT_ANCHORS.search(text))
+        has_generic_event = bool(GENERIC_EVENT_WORDS.search(text))
+        has_event_intent = bool(EVENT_INTENT.search(text))
+        administrative_only = bool(ADMIN_ONLY.search(text)) and not has_anchor
+        if administrative_only:
+            continue
+        if not has_anchor and not (has_generic_event and has_event_intent):
+            continue
+
         record, reason = make_record(item)
         trusted_source = trusted(item["source_url"])
         if record and trusted_source:
             auto.append(record)
         else:
+            if has_anchor and not record:
+                reason = reason or "Notícia relacionada a um evento; falta confirmar a programação completa."
             pending.append({
                 "titulo": item["title"], "descricao": item["description"],
                 "link": item["link"], "fonte": item["source_name"],
@@ -198,3 +229,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
