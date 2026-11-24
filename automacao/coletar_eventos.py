@@ -62,9 +62,9 @@ PAST_RE = re.compile(
     r"\b(aconteceu|foi realizado|foi realizada|reuniu|recebeu p[uú]blico|"
     r"encerrou|terminou|veja como foi|confira como foi|melhores momentos)\b", re.I)
 ROUNDUP_RE = re.compile(
-    r"\\b(veja opções|op[cç][oõ]es de lazer|agenda da semana|agenda cultural|"
+    r"\b(veja opções|op[cç][oõ]es de lazer|agenda da semana|agenda cultural|"
     r"programação da semana|confira a programação|shows? .* e mais|"
-    r"eventos .* e mais|o que fazer em)\\b", re.I)
+    r"eventos .* e mais|o que fazer em)\b", re.I)
 MONTHS = {"janeiro":1,"fevereiro":2,"março":3,"marco":3,"abril":4,"maio":5,
           "junho":6,"julho":7,"agosto":8,"setembro":9,"outubro":10,
           "novembro":11,"dezembro":12}
