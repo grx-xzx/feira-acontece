@@ -17,6 +17,7 @@ import time
 import email.utils
 import urllib.parse
 import urllib.request
+import urllib.error
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
@@ -60,6 +61,10 @@ ADMIN_ONLY_RE = re.compile(
 PAST_RE = re.compile(
     r"\b(aconteceu|foi realizado|foi realizada|reuniu|recebeu p[uú]blico|"
     r"encerrou|terminou|veja como foi|confira como foi|melhores momentos)\b", re.I)
+ROUNDUP_RE = re.compile(
+    r"\\b(veja opções|op[cç][oõ]es de lazer|agenda da semana|agenda cultural|"
+    r"programação da semana|confira a programação|shows? .* e mais|"
+    r"eventos .* e mais|o que fazer em)\\b", re.I)
 MONTHS = {"janeiro":1,"fevereiro":2,"março":3,"marco":3,"abril":4,"maio":5,
           "junho":6,"julho":7,"agosto":8,"setembro":9,"outubro":10,
           "novembro":11,"dezembro":12}
@@ -125,8 +130,15 @@ class ArticleParser(HTMLParser):
         self._script_type = ""
         self._script_data: list[str] = []
         self._skip = 0
+        self.canonical_url = ""
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag.lower() == "link" and "canonical" in attrs.get("rel", "").lower():
+            self.canonical_url = attrs.get("href", "") or self.canonical_url
+        if tag.lower() == "meta":
+            prop = (attrs.get("property") or attrs.get("name") or "").lower()
+            if prop in {"og:url", "twitter:url"}:
+                self.canonical_url = attrs.get("content", "") or self.canonical_url
         if tag.lower() == "script":
             self._script_type = attrs.get("type", "").lower()
             self._script_data = []
@@ -194,7 +206,7 @@ def fetch_article(url: str) -> tuple[str, list[dict], str]:
     host = parsed.hostname.lower()
     if host in {"localhost", "127.0.0.1", "::1"} or host.endswith((".local", ".internal")):
         return "", [], url
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; FeiraAcontece/3.0)",
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; FeiraAcontece/3.1)",
                                                "Accept": "text/html,application/xhtml+xml"})
     try:
         with open_with_retry(req, timeout=15, attempts=3) as response:
@@ -213,6 +225,34 @@ def fetch_article(url: str) -> tuple[str, list[dict], str]:
                 events.extend(walk_jsonld(data))
             except (json.JSONDecodeError, TypeError):
                 continue
+
+        # Tenta sair do redirecionador do Google Notícias pelo canonical/og:url.
+        canonical = urllib.parse.urljoin(final_url, parser.canonical_url) if parser.canonical_url else ""
+        if canonical and canonical != final_url and is_trusted_source(canonical):
+            try:
+                original_req = urllib.request.Request(
+                    canonical,
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; FeiraAcontece/3.1)",
+                             "Accept": "text/html,application/xhtml+xml"}
+                )
+                with open_with_retry(original_req, timeout=15, attempts=2) as original_response:
+                    original_url = original_response.geturl()
+                    if "text/html" in original_response.headers.get("Content-Type", "").lower():
+                        original_raw = original_response.read(1_500_000)
+                        original_charset = original_response.headers.get_content_charset() or "utf-8"
+                        original_parser = ArticleParser()
+                        original_parser.feed(original_raw.decode(original_charset, errors="replace"))
+                        original_text = clean(" ".join(original_parser.parts))
+                        original_events = []
+                        for block in original_parser.jsonld:
+                            try:
+                                original_events.extend(walk_jsonld(json.loads(block)))
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+                        if original_text:
+                            return original_text[:100_000], original_events, original_url
+            except Exception as exc:
+                print(f"[AVISO] Falha ao consultar matéria original {canonical[:100]}: {exc}")
         return text[:100_000], events, final_url
     except Exception as exc:
         print(f"[AVISO] Não foi possível abrir matéria {url[:100]}: {exc}")
@@ -262,7 +302,7 @@ def category(text: str) -> str:
 
 def fetch_feed(query: str) -> ET.Element:
     url = "https://news.google.com/rss/search?" + urllib.parse.urlencode({"q":query,"hl":"pt-BR","gl":"BR","ceid":"BR:pt-419"})
-    req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0 FeiraAcontece/3.0 RSS reader"})
+    req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0 FeiraAcontece/3.1 RSS reader"})
     with open_with_retry(req, timeout=25, attempts=4) as response: return ET.fromstring(response.read())
 
 
@@ -360,6 +400,10 @@ def main() -> int:
         if not reason and (not city_ok or not EVENT_RE.search(full_text)):
             reason = "A matéria completa não confirmou claramente evento em Feira de Santana."
         event_date, event_time, location = event_details(article_text, json_events) if article_text else (None, None, "")
+        # Uma matéria de opções de lazer reúne atrações distintas; não publicar
+        # o título da lista como se fosse um único evento.
+        if not reason and ROUNDUP_RE.search(rss_text) and len(json_events) != 1:
+            reason = "Matéria reúne várias opções de lazer; cada atração precisa ser identificada e conferida separadamente."
         if not reason and event_date is None:
             reason = "A matéria original foi consultada, mas não foi encontrada data futura do evento."
         if not reason and PAST_RE.search(full_text):
