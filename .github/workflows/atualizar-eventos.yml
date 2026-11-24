@@ -1,30 +1,49 @@
 name: Atualizar eventos automaticamente
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "17 */6 * * *"
+    # Executa 3 vezes ao dia (08:00, 14:00 e 20:00 no horário de Brasília / Bahia)
+    - cron: '0 11,17,23 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: atualizar-eventos-feira-acontece
+  cancel-in-progress: false
+
 jobs:
-  coletar:
+  coletar-e-publicar:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
-      - name: Preparar Python
+        with:
+          fetch-depth: 1
+
+      - name: Configurar Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Buscar eventos em fontes RSS
-        run: python automacao/coletar_eventos.py
-      - name: Salvar eventos e fila de revisão
+          python-version: '3.12'
+
+      - name: Executar coletor de eventos
+        env:
+          TZ: America/Bahia
+        run: |
+          python3 automacao/coletar_eventos.py
+
+      - name: Salvar atualizações no repositório (GitHub Pages)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add eventos-auto.js aprovacao/pendentes.json
-          git diff --cached --quiet || git commit -m "Atualiza eventos encontrados automaticamente"
-          git push
-
+          git add eventos-auto.js aprovacao/aprovados.json aprovacao/pendentes.json aprovacao/processados.json
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração nos eventos."
+            exit 0
+          fi
+          git commit -m "chore(eventos): atualização automática $(date +'%Y-%m-%d %H:%M')"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"
