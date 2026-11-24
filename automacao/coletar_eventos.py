@@ -13,6 +13,8 @@ import html
 import json
 import re
 import sys
+import time
+import email.utils
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -40,7 +42,6 @@ QUERIES = [
     'teatro OR exposição OR feira gastronômica "Feira de Santana"',
     'site:instagram.com "Feira de Santana" (show OR evento OR festa)',
     'site:instagram.com "Feira de Santana" (festival OR micareta OR São João)',
-    'site:instagram.com "Feira de Santana" (ingressos OR programação OR atrações)',
 ]
 TRUSTED_DOMAINS = {
     "feiradesantana.ba.gov.br", "g1.globo.com", "acordacidade.com.br",
@@ -160,6 +161,30 @@ def walk_jsonld(obj):
         for value in obj: yield from walk_jsonld(value)
 
 
+def open_with_retry(req: urllib.request.Request, timeout: int = 20, attempts: int = 4):
+    """Faz requisições com espera progressiva para respeitar limites HTTP 429."""
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code not in (429, 500, 502, 503, 504) or attempt == attempts - 1:
+                raise
+            retry_after = exc.headers.get("Retry-After", "")
+            try:
+                wait = min(45, max(2, int(retry_after)))
+            except ValueError:
+                try:
+                    when = email.utils.parsedate_to_datetime(retry_after)
+                    wait = min(45, max(2, int((when - dt.datetime.now(when.tzinfo)).total_seconds())))
+                except Exception:
+                    wait = min(45, 3 * (2 ** attempt))
+            print(f"[AVISO] HTTP {exc.code}; aguardando {wait}s antes de tentar novamente...")
+            time.sleep(wait)
+    raise last_error
+
+
 def fetch_article(url: str) -> tuple[str, list[dict], str]:
     """Busca matéria pública via HTTP; retorna texto, eventos JSON-LD e URL final."""
     parsed = urlparse(url)
@@ -172,7 +197,7 @@ def fetch_article(url: str) -> tuple[str, list[dict], str]:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; FeiraAcontece/3.0)",
                                                "Accept": "text/html,application/xhtml+xml"})
     try:
-        with urllib.request.urlopen(req, timeout=12) as response:
+        with open_with_retry(req, timeout=15, attempts=3) as response:
             final_url = response.geturl()
             if "text/html" not in response.headers.get("Content-Type", "").lower():
                 return "", [], final_url
@@ -238,13 +263,14 @@ def category(text: str) -> str:
 def fetch_feed(query: str) -> ET.Element:
     url = "https://news.google.com/rss/search?" + urllib.parse.urlencode({"q":query,"hl":"pt-BR","gl":"BR","ceid":"BR:pt-419"})
     req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0 FeiraAcontece/3.0 RSS reader"})
-    with urllib.request.urlopen(req, timeout=25) as response: return ET.fromstring(response.read())
+    with open_with_retry(req, timeout=25, attempts=4) as response: return ET.fromstring(response.read())
 
 
 def read_items() -> list[dict]:
     found, seen = [], set()
     for query in QUERIES:
         try:
+            time.sleep(2)
             root = fetch_feed(query)
             for node in root.findall(".//item"):
                 title, description, link = clean(node.findtext("title")), clean(node.findtext("description")), clean(node.findtext("link"))
@@ -306,6 +332,7 @@ def main() -> int:
     auto_count = 0
     # Evita sobrecarregar sites: abre somente resultados de fontes confiáveis e relevantes.
     article_fetches = 0
+    article_limit = 24  # limita chamadas para reduzir bloqueios dos sites
     for item in candidates:
         rss_text = f"{item['title']} {item['description']}"
         instagram = is_instagram(item)
@@ -320,7 +347,7 @@ def main() -> int:
             reason, suggestion = "", None
 
         article_text, json_events, final_url = "", [], item["link"]
-        if trusted and not instagram and not suggestion and not reason and article_fetches < 80:
+        if trusted and not instagram and not suggestion and not reason and article_fetches < article_limit:
             article_text, json_events, final_url = fetch_article(item["link"])
             article_fetches += 1
         item["article_text"] = article_text
@@ -360,6 +387,7 @@ def main() -> int:
     OUT_JS.parent.mkdir(parents=True, exist_ok=True)
     OUT_JS.write_text("/* Gerado automaticamente. Não edite este arquivo. */\nvar EVENTOS_AUTO = "+json.dumps(list(auto_by_id.values()),ensure_ascii=False,indent=2)+";\n",encoding="utf-8")
     save_json(PENDING_JSON,pending)
+    print(f"Limite de matérias originais por execução: {article_limit}")
     print(f"Matérias originais consultadas: {article_fetches}")
     print(f"Eventos aprovados/publicados nesta execução: {auto_count}")
     print(f"Eventos aprovados/publicados no total: {len(auto_by_id)}")
@@ -373,4 +401,3 @@ if __name__ == "__main__":
     except Exception as error:
         print(f"[ERRO] {error}", file=sys.stderr)
         raise
-
