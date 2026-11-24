@@ -108,9 +108,14 @@ def parse_date(text: str, today: dt.date | None = None) -> dt.date | None:
         except ValueError: pass
     m = DATE_TEXT_RE.search(text.lower())
     if m:
-        day, month, year = int(m.group(1)), MONTHS.get(m.group(2)), int(m.group(3) or today.year)
+        day, month = int(m.group(1)), MONTHS.get(m.group(2))
+        year = int(m.group(3)) if m.group(3) else today.year
         if month:
-            try: return dt.date(year, month, day)
+            try:
+                candidate = dt.date(year, month, day)
+                # Sem ano explícito, não presume o ano seguinte quando a data já passou.
+                if m.group(3) or candidate >= today:
+                    return candidate
             except ValueError: pass
     return None
 
@@ -288,6 +293,48 @@ def event_details(article_text: str, json_events: list[dict]) -> tuple[dt.date |
     return None, None, ""
 
 
+def jsonld_event_suggestion(item: dict, event: dict) -> dict | None:
+    """Converte um Event estruturado em evento individual, sem herdar dados da lista."""
+    name = clean(str(event.get("name") or event.get("headline") or ""))
+    start = event.get("startDate") or event.get("start_date")
+    if not name or not start:
+        return None
+    event_date = parse_date(str(start))
+    if not event_date or event_date < dt.date.today():
+        return None
+
+    loc = event.get("location")
+    if isinstance(loc, list):
+        loc = loc[0] if loc else {}
+    if isinstance(loc, dict):
+        address = loc.get("address", "")
+        if isinstance(address, dict):
+            address_text = " ".join(str(address.get(k, "")) for k in ("streetAddress", "addressLocality", "addressRegion", "addressCountry"))
+        else:
+            address_text = str(address or "")
+        location = clean(" ".join((str(loc.get("name", "")), address_text)))
+    else:
+        location = clean(str(loc or ""))
+
+    # Em matérias de agenda, a cidade do título não prova que cada atração
+    # acontece nela. Exigimos Feira de Santana no local do próprio Event.
+    if not CITY_RE.search(location) or OTHER_CITY_RE.search(location):
+        return None
+
+    item_copy = dict(item)
+    item_copy["article_text"] = clean(str(event.get("description") or item.get("article_text", "")))
+    suggestion = make_suggestion(item_copy, event_date, parse_time(str(start)), location)
+    suggestion["titulo"] = name
+    event_url = event.get("url")
+    if isinstance(event_url, dict):
+        event_url = event_url.get("url")
+    if isinstance(event_url, str) and event_url.startswith(("http://", "https://")):
+        suggestion["fonte"] = event_url
+    slug = re.sub(r"[^a-z0-9]+", "-", name.casefold().encode("ascii", "ignore").decode()).strip("-")[:55]
+    suggestion["id"] = f"rss-{slug or 'evento'}-{event_date.isoformat()}"
+    return suggestion
+
+
 def category(text: str) -> str:
     t = text.casefold()
     if re.search(r"\b(show|shows|m[uú]sica|forr[oó]|concerto|cantor|cantora)\b", t): return "Shows e música"
@@ -400,10 +447,24 @@ def main() -> int:
         if not reason and (not city_ok or not EVENT_RE.search(full_text)):
             reason = "A matéria completa não confirmou claramente evento em Feira de Santana."
         event_date, event_time, location = event_details(article_text, json_events) if article_text else (None, None, "")
-        # Uma matéria de opções de lazer reúne atrações distintas; não publicar
-        # o título da lista como se fosse um único evento.
-        if not reason and ROUNDUP_RE.search(rss_text) and len(json_events) != 1:
-            reason = "Matéria reúne várias opções de lazer; cada atração precisa ser identificada e conferida separadamente."
+        # Em matérias de agenda, cada objeto JSON-LD Event é tratado separadamente.
+        # Nunca usa a data/local geral da matéria para preencher atrações individuais.
+        if ROUNDUP_RE.search(rss_text):
+            individual = [jsonld_event_suggestion(item, ev) for ev in json_events]
+            individual = [ev for ev in individual if ev is not None]
+            if individual and trusted and not instagram and final_domain_ok:
+                for event_suggestion in individual:
+                    auto_by_id[event_suggestion["id"]] = event_suggestion
+                    auto_count += 1
+                continue
+            reason = "Matéria reúne várias opções de lazer, mas não foi possível confirmar separadamente nome, data futura e local em Feira de Santana de cada atração."
+            suggestion = None
+            entry = {"titulo":item["title"],"descricao":item["description"],"link":item["link"],
+                     "fonte":item["source_name"],"dominio":domain_of(item["source_url"]),
+                     "instagram":instagram,"motivo":reason,"sugestao":None}
+            key = (item["link"] or item["title"]).casefold()
+            pending_by_key[key] = entry
+            continue
         if not reason and event_date is None:
             reason = "A matéria original foi consultada, mas não foi encontrada data futura do evento."
         if not reason and PAST_RE.search(full_text):
