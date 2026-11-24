@@ -670,7 +670,7 @@
     "fonte": "G1",
     "dominio": "g1.globo.com",
     "instagram": false,
-    "motivo": "Possível evento em Feira de Santana; faltam data futura confirmada e/ou informações completas.",
+    "motivo": "A matéria original foi consultada, mas não foi encontrada data futura do evento.",
     "sugestao": null
   },
   {
@@ -4434,7 +4434,7 @@
     "fonte": "Jornal Grande Bahia",
     "dominio": "jornalgrandebahia.com.br",
     "instagram": false,
-    "motivo": "Matéria reúne várias opções de lazer; cada atração precisa ser identificada e conferida separadamente.",
+    "motivo": "Matéria reúne várias opções de lazer, mas não foi possível confirmar separadamente nome, data futura e local em Feira de Santana de cada atração.",
     "sugestao": null
   },
   {
@@ -6289,6 +6289,16 @@
     "titulo": "🎉No comanda da La Fúria, Bruno Magnata leva o pagodão ao Circuito Maneca Ferreira da Micareta de Feira de Santana neste domingo (22). Natural de Castro Alves, no Recôncavo Baiano, o cantor tem fortes laços com a Princesinha do Sertão e se sente e - Instagram",
     "descricao": "🎉No comanda da La Fúria, Bruno Magnata leva o pagodão ao Circuito Maneca Ferreira da Micareta de Feira de Santana neste domingo (22). Natural de Castro Alves, no Recôncavo Baiano, o cantor tem fortes laços com a Princesinha do Sertão e se sente e Instagram",
     "link": "https://news.google.com/rss/articles/CBMiVkFVX3lxTE5GYmI0cDFfT0Y2cFliZUtIdTBHZEowTldmQlE0b0R4YXFLTVY2c3RXX0t5NWZXMkpuMkx0MTlIUDJ5dGZjWkNOWWNCODZFckVRSVNYYnpR?oc=5",
+    "fonte": "Instagram",
+    "dominio": "instagram.com",
+    "instagram": true,
+    "motivo": "A matéria original foi consultada, mas não foi encontrada data futura do evento.",
+    "sugestao": null
+  },
+  {
+    "titulo": "🎉Natural de Feira de Santana, o cantor Thiago Aquino está se sentido em casa. O cantor se apresentou no Circuito Maneca Ferreira da Micareta de Feira na noite desta sexta-feira (20). Em entrevista exclusiva ao Portal Salvador FM, o artista comentou a sen - Instagram",
+    "descricao": "🎉Natural de Feira de Santana, o cantor Thiago Aquino está se sentido em casa. O cantor se apresentou no Circuito Maneca Ferreira da Micareta de Feira na noite desta sexta-feira (20). Em entrevista exclusiva ao Portal Salvador FM, o artista comentou a sen Instagram",
+    "link": "https://news.google.com/rss/articles/CBMiVkFVX3lxTE8tNTFhQktPeHJXVHR5OWtNNFpyQVBKUjRqZ3ptSDQ3S2l1ODJ0a0xGMEhLbUpnUXE4SDdkQU11NER6a29adjEyTEhqcTMtd0doUFZoVXBn?oc=5",
     "fonte": "Instagram",
     "dominio": "instagram.com",
     "instagram": true,
